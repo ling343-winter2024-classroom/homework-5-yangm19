@@ -13,9 +13,12 @@ library(cowplot)
 ### Read in the raw data and pull apart into demographics, comprehension response data, and maze reading data
 
 #directory <- "C:\\Users\\Matt\\Dropbox\\Research\\delong maze\\"
-directory <- "C:\\Users\\cpgl0052\\Dropbox\\Research\\delong maze\\"
+#directory <- "C:\\Users\\cpgl0052\\Dropbox\\Research\\delong maze\\"
 
-d <- read.csv(paste(directory,"data\\delong maze 40Ss.csv",sep=""), 
+here::i_am("analysis/homework5.qmd")
+library(here)
+
+d <- read.csv(here("data/delong maze 40Ss.csv"), 
               header = 0, sep = ",", comment.char = "#", strip.white = T,
               col.names = c("Index","Time","Counter","Hash","Owner","Controller","Item","Element","Type","Group","FieldName","Value","WordNum","Word","Alt","WordOn","CorrWord","RT","Sent","TotalTime","Question","Resp","Acc","RespRT"));
 

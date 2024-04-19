@@ -1,26 +1,440 @@
 ---
 title: "Homework 5"
 author: "Molly Yang"
-format: html
+format: 
+  html:
+    embed-resources: true
+editor_options: 
+  chunk_output_type: console
 ---
 
-## Quarto
+## Introduction
 
-Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
+Theories of language processing have increasingly used comprehenders for predicting upcoming words. The maze task is promising for studying early cues to prediction, and is cheap and easy compared to earlier methodology. Maze tasks present sentences to participants as a sequence of choices between two alternatives, one of which is the correct continuation while the other is a distractor (a real word that is anomalous or a pseudoword). Previous studies using A-maze have found that unexpected articles and nouns result in slower focal response times, which in turn are inversely related to noun cloze probabilities and have slower responders which show larger effects of expectation. This report will go over how an A-maze task can be sensitive to expectation and used for prediction in comprehension research.
 
-## Running Code
 
-When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
+## Data dictionary
+
+Here is a selection of variables from the data that are useful to take note of:
+
+*Time*
+: The timestamp of completion for the participant
+
+*Hash*
+: The identifier of the participant
+
+*Controller name *
+: Type of the current task
+
+*Item number *
+: The number of the task	
+
+*Type *
+: The phase of the task	
+
+*Field name *
+: The questions	
+
+*Field value *
+: Answers to previous questions	
+
+*Word number *
+: Index of the word in the maze task	
+
+*Word *
+: The word in the maze task	
+
+*Alternative *
+: The distractor alternative	
+
+*Word on (0 = left, 1 = right) *
+: The position of the correct word	
+
+*Correct *
+: Did the participant get it correct (yes/no)
+
+*Reading time to first answer *
+: Time it took for the participant to choose	
+
+*Sentence *
+: The entire correct sentence
+
+*Total time to correct answer * 
+: Total time it took to complete the entire sentence correctly	
+
+*Question (NULL if none) *
+: The question about the sentences
+
+*Answer *
+: The participant's answer
+
+*Whether or not answer was correct (NULL if N/A) *
+: Correctness of the answer
+
+*Time taken to answer *
+: Time participant took to answer
+
+## Importing data
+The data used in this report is from the Husband 2022 paper at <https://escholarship.org/uc/item/7dz7z3q3>
 
 ```{r}
-1 + 1
+#| code-fold: true
+#| code-summary: "Show the code"
+#| warning: false
+library(tidyverse)
+
+#directory <- "C:\\Users\\cpgl0052\\Dropbox\\Research\\delong maze\\"
+here::i_am("analysis/homework5.qmd")
+library(here)
+
+d <- read.csv(here("data/delong maze 40Ss.csv"), 
+              header = 1, sep = ",", comment.char = "#", strip.white = T,
+              col.names = c("Index","Time","Counter","Hash","Owner","Controller","Item","Element","Type","Group","FieldName","Value","WordNum","Word","Alt","WordOn","CorrWord","RT","Sent","TotalTime","Question","Resp","Acc","RespRT"));
+
 ```
 
-You can add options to executable code like this 
+## Methods
+40 native UK English speakers were recruited as participants, one of whose results did not transfer and so was left out of initial analysis.
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+#| warning: false
+demo <- d |> 
+  filter(Controller == "Form") |> 
+  select(1:12) |> 
+  rename(
+    Subject = 1,
+    MD5 = 2,
+    TrialType = 3,
+    Number = 4,
+    Element = 5,
+    Experiment = 6,
+    Item = 7,
+    Field = 8,
+    Response = 9,
+    X = 10,
+    field = 11,
+    resp = 12
+  ) |> 
+  mutate(across(where(is.factor) | where(is.character), factor))
+
+resp <- d |> 
+  filter(Controller == "Question" & !grepl("^prac", Type)) |> 
+  select(c(1:10, 21:24)) |> 
+  separate(Type, into = c("exp", "item", "expect", "position", "pos", "cloze", "art.cloze", "n.cloze"), sep = "\\.", convert = TRUE, fill = "right") |> 
+  mutate(across(where(is.factor) | where(is.character), factor),
+         Acc = as.numeric(Acc),
+         RespRT = as.numeric(RespRT))
+
+rt <- d |> 
+  filter(Controller == "Maze" & !grepl("^prac", Type)) |> 
+  select(c(1:10, 13:20)) |> 
+  separate(Type, into = c("exp", "item", "expect", "position", "pos", "cloze", "art.cloze", "n.cloze"), sep = "\\.", convert = TRUE, fill = "right") |> 
+  mutate(across(where(is.factor) | where(is.character), factor),
+         WordNum = as.numeric(WordNum),
+         RT = as.numeric(RT),
+         TotalTime = as.numeric(TotalTime),
+         Acc = as.numeric(recode(CorrWord, yes = "1", no = "0")),
+         n.cloze.scale = scale(n.cloze),
+         art.cloze.scale = scale(art.cloze))
+```
 
 ```{r}
-#| echo: false
-2 * 2
+#| code-fold: true
+#| code-summary: "Show the code"
+#| warning: false
+
+# removing one participant
+resp <- resp |> 
+  filter(item != 29)
+
+rt <- rt |> 
+  filter(item != 29)
 ```
 
-The `echo: false` option disables the printing of code (only output is displayed).
+80 sentence contexts were combined with two possible continuations as well as an expected and unexpected indefinite article and noun combination. Each of the combinations appeared once as the expected and the other as the unexpected continuation in different sentence contexts (making a total of 160 sentences). 
+
+Median cloze probability for expected articles was 0.75 (min 0.16; mean 0.74; max 1.00), for expected nouns 0.90 (min 0.23; mean 0.82; max 1.00), for unexpected articles 0.02 (min 0.00; mean 0.08; max 0.39), and for unexpected nouns 0.00 (min 0.00; mean 0.09; max 0.77). Expected article and noun cloze probability correlation was 0.24, and 0.10 for unexpected conditions. Sentences were divided in to two lists of 80 sentences each. Each article-noun combination appeared only once per list. A yes/no comprehension question followed 21 of the sentences.
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+#| warning: false
+
+# Item cloze distributions
+item.cloze <- rt |> 
+  group_by(expect) |> 
+  distinct(item, .keep_all = TRUE) |> 
+  arrange(item)
+
+item.cloze_summary <- item.cloze |> 
+  summarize(
+    n = n(),
+    min.art.cloze = min(art.cloze),
+    max.art.cloze = max(art.cloze),
+    mean.art.cloze = mean(art.cloze),
+    med.art.cloze = median(art.cloze),
+    min.n.cloze = min(n.cloze),
+    max.n.cloze = max(n.cloze),
+    mean.n.cloze = mean(n.cloze),
+    med.n.cloze = median(n.cloze)
+  )
+
+item.cloze_cor <- item.cloze |> 
+  group_by(expect) |> 
+  summarize(
+    n = n(),
+    cor = cor(art.cloze, n.cloze)
+  )
+```
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+#| warning: false
+
+# Comprehension question response analysis:
+
+resp_summary <- resp |> 
+  summarize(
+    n = n(),
+    acc = mean(Acc),
+    acc.sd = sd(Acc),
+    rt = mean(RespRT),
+    rt.sd = sd(RespRT)
+  ) |> 
+  as.data.frame()
+
+resp_grouped <- resp |> 
+  group_by(Hash) |> 
+  summarize(
+    n = n(),
+    acc = mean(Acc),
+    acc.sd = sd(Acc),
+    rt = mean(RespRT),
+    rt.sd = sd(RespRT)
+  ) |> 
+  mutate(keep = acc > mean(acc) - 2 * sd(acc)) |> 
+  arrange(acc) |> 
+  as.data.frame()
+
+#remove 1 subject at 52% accuracy - all others >70%
+
+resp_filtered <- resp |> 
+  filter(Hash != '9dAvrH0+R6a0U5adPzZSyA') |> 
+  summarize(
+    n = n(),
+    acc = mean(Acc),
+    rt = mean(RespRT)
+  ) |> 
+  as.data.frame()
+```
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+#| warning: false
+
+# Maze reading analysis:
+
+rt.s <- rt |> 
+  filter(Hash != '9dAvrH0+R6a0U5adPzZSyA') |> 
+  mutate(
+    rgn.fix = WordNum - pos + 1,
+    word.num.z = scale(WordNum),
+    word.len = nchar(as.character(Word)),
+    Altword.len = nchar(as.character(Alt))
+  ) |> 
+  mutate(expect = factor(expect, levels = unique(expect))) |> 
+  mutate(item.expect = paste(item, expect, sep = "."))
+
+delong.items <- rt.s |> 
+  filter(rgn.fix == 0) |> 
+  distinct(item.expect, .keep_all = TRUE)
+
+ggplot(delong.items, aes(x = n.cloze, fill = expect)) +
+  geom_histogram()
+
+ggplot(delong.items, aes(x = art.cloze, fill = expect)) +
+  geom_histogram()
+
+ggplot(delong.items, aes(x = n.cloze, fill = Word)) +
+  geom_histogram()
+
+ggplot(delong.items, aes(x = art.cloze, fill = Word)) +
+  geom_histogram()
+
+ggplot(delong.items, aes(x = pos, fill = expect)) +
+  geom_histogram()
+```
+
+Distractors were selected for all words except the first of each sentence stimulus. They were matched by length and approximate frquency to the right continuation word, and were low probability given the left sentence context of that word. For the first word of each sentence, the correct word was presented on the left against a distractor, and for all else left and right positions of correct words and distractors were randomized.
+
+An example of sentences and distractors generated by A-maze:
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+#| warning: false
+
+library(kableExtra)
+
+df_stimuli <- tibble::tribble(
+     ~condition,  ~item,  ~sentence,
+  "expected", 1,  "The highlight of Jack’s trip to India was when he got to ride an elephant in the parade.",
+  "unexpected", 1, "The highlight of Jack’s trip to India was when he got to ride a bicycle in the parade.",
+  "expected", 2, "You never forget how to ride a bicycle once you’ve learned.",
+  "unexpected", 2, "You never forget how to ride an elephant once you’ve learned."
+  )
+
+df_stimuli |> 
+  kbl() |> 
+  kable_styling()
+```
+
+In the study, participants used ‘e’ and ‘i’ keys respectively to select the left or right alternative continuation. These were also used to answer yes/no comprehension questions. Selecting the correct continuation word advanced the sentence to the next word pair, while selecting the distractor triggered an error message and prompted the participant to select the correct continuation. 
+
+## Results
+
+The participants showed a very high overall comprehension accuracy and low average error rates for each word by condition. Analyses were restricted to the two critical regions (target article and noun) and the three words preceding and following the two critical words. 
+
+Looking at the average error rates for each word by condition, the error rate over all eight regions was low (3.8%). Error rates were 4.2% for the target article and 3.0% for the noun. Two participants whose error rates were two standard deviations above the group average (25.7% and 18.3%) were removed from further analysis. All other participants had average error rates below 10%, with an overall error rate average of 2.8%.
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+#| warning: false
+
+summary_range <- rt.s |> 
+  filter(rgn.fix > -4 & rgn.fix < 5) |> 
+  summarize(
+    n = n(),
+    acc = mean(Acc),
+    sd = sd(Acc),
+    error = 1 - acc
+  )
+
+summary_rgn_fix_0 <- rt.s |> 
+  filter(rgn.fix == 0) |> 
+  summarize(
+    n = n(),
+    acc = mean(Acc),
+    sd = sd(Acc),
+    error = 1 - acc
+  )
+
+summary_rgn_fix_1 <- rt.s |> 
+  filter(rgn.fix == 1) |> 
+  summarize(
+    n = n(),
+    acc = mean(Acc),
+    sd = sd(Acc),
+    error = 1 - acc
+  )
+
+summary_grouped <- rt.s |> 
+  filter(rgn.fix > -4 & rgn.fix < 4) |> 
+  group_by(Hash) |> 
+  summarize(
+    n = n(),
+    acc = mean(Acc),
+    sd = sd(Acc),
+    error = 1 - acc
+  ) |> 
+  mutate(keep = acc > mean(acc) - 2 * sd(acc)) |> 
+  arrange(acc) |> 
+  as.data.frame()
+
+#remove 2 (73.5% and 81.9%) - all others >90%
+
+rt.s.filt <- rt.s |> 
+  filter(Hash != "gyxidIf0fqXBM7nxg2K7SQ" & Hash != "f8dC3CkleTBP9lUufzUOyQ")
+
+summary_range <- rt.s.filt |> 
+  filter(rgn.fix > -4 & rgn.fix < 5) |> 
+  summarize(
+    n = n(),
+    acc = mean(Acc),
+    sd = sd(Acc),
+    error = 1 - acc
+  )
+
+summary_rgn_fix_0 <- rt.s.filt |> 
+  filter(rgn.fix == 0) |> 
+  summarize(
+    n = n(),
+    acc = mean(Acc),
+    sd = sd(Acc),
+    error = 1 - acc
+  )
+
+summary_rgn_fix_1 <- rt.s.filt |> 
+  filter(rgn.fix == 1) |> 
+  summarize(
+    n = n(),
+    acc = mean(Acc),
+    sd = sd(Acc),
+    error = 1 - acc
+  )
+```
+
+Error and post-error responses were removed in analysis of response times. The figure below shows results by Expectation. Reaction times for the unexpected condition were significantly slower than the expected condition on not just the noun but also on the preceding article, while no significant differences were found on regions prior to the article.
+
+Graph of raw error free RTs:
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+#| warning: false
+
+rgn.rt.raw <- rt.s.filt |> 
+  filter(rgn.fix > -4 & rgn.fix < 5) |> 
+  filter(Acc == 1) |> 
+  group_by(rgn.fix, expect) |> 
+  summarize(
+    n = n(),
+    subj = length(unique(Hash)),
+    rt = mean(RT),
+    sd = sd(RT),
+    stderr = sd / sqrt(subj)
+  ) |> 
+  as.data.frame()
+
+rgn.rt.raw$rgn <- as.factor(recode(rgn.rt.raw$rgn.fix,
+                                    "-3" = "CW-3",
+                                    "-2" = "CW-2",
+                                    "-1" = "CW-1",
+                                    "0" = "art",
+                                    "1" = "n",
+                                    "2" = "CW+1",
+                                    "3" = "CW+2",
+                                    "4" = "CW+3"))
+rgn.rt.raw$rgn <- ordered(rgn.rt.raw$rgn,
+                            levels = c("CW-3", "CW-2", "CW-1", "art", "n", "CW+1", "CW+2", "CW+3"))
+
+ggplot(rgn.rt.raw, aes(x = rgn, y = rt, group = expect, shape = expect)) +
+  geom_line(stat = "identity", position = position_dodge(width = 0.3)) +
+  geom_point(stat = "identity", position = position_dodge(width = 0.3), size = 3) +
+  geom_errorbar(aes(ymin = rt - stderr, ymax = rt + stderr), width = 0.15, position = position_dodge(width = 0.3)) +
+  scale_shape_manual(name = "", labels = c("Expected", "Unexpected"), values = c(21, 19)) +
+  xlab("Word") +
+  ylab("Reading Time (msec)") +
+  theme_bw()
+
+```
+Error bars indicate difference-adjusted 95% mixed-effect-model-based intervals. They can be interpreted to show that two conditions are likely, but not guaranteed, to be significantly different in a mixed effect model when one condition’s interval does not include the other’s mean.
+
+Table of raw error free RTs:
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+#| warning: false
+
+rgn_table <- rgn.rt.raw |> 
+  kbl() |> 
+  kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE)
+
+rgn_table
+
+```
+
+## Discussion
+The maze task showed effects of expectation for target nouns and the article a/an contrast preceding them. The unexpected nouns and their preceding articles were correlated with a much slower response time than their expected counterparts. The maze task seems to show sensitivity to the predictive use of phonotactic constraints between an expected word and the word preceding it. 
